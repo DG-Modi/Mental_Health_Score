@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const API_BASE = "https://mental-health-score-58g5.onrender.com";
+  const LOCAL_API_BASE = "http://127.0.0.1:8000";
+  let activeApiBase = (window.location.protocol.startsWith("http")) ? window.location.origin : LOCAL_API_BASE;
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
