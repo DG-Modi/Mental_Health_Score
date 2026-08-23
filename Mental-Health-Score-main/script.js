@@ -1,11 +1,7 @@
 (() => {
   "use strict";
 
-  const DEPLOYED_API_BASE = "https://mental-health-score-1-jp13.onrender.com";
-  const LOCAL_API_BASE = "http://127.0.0.1:8000";
-  let activeApiBase = window.location.protocol.startsWith("http")
-    ? window.location.origin
-    : DEPLOYED_API_BASE;
+ const API_BASE = "https://mental-health-score-58g5.onrender.com";
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
@@ -179,9 +175,8 @@
   // UI state management
   // ---------------------------------------------------------
   function showState(name) {
-    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => { if (el) el.hidden = true; });
-    const target = { idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name];
-    if (target) target.hidden = false;
+    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => (el.hidden = true));
+    ({ idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name]).hidden = false;
   }
 
   function setSubmitting(isSubmitting) {
@@ -192,18 +187,18 @@
   function bandFor(score) {
     if (score < 4) {
       return {
-        label: "Signal: Strained",
+        label: "Signal: strained",
         context: "Your responses suggest elevated strain right now. Small shifts in sleep or screen time can go a long way.",
       };
     }
     if (score < 7) {
       return {
-        label: "Signal: Balanced",
+        label: "Signal: balanced",
         context: "Your rhythm looks fairly steady, with some room to recover and reset.",
       };
     }
     return {
-      label: "Signal: Strong",
+      label: "Signal: strong",
       context: "Your habits point to a well-supported, resilient baseline. Keep it up.",
     };
   }
@@ -216,21 +211,41 @@
     scoreBandEl.textContent = label;
     scoreContextEl.textContent = context;
 
-    if (gaugeFill) {
-      gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
-      requestAnimationFrame(() => {
-        const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
-        gaugeFill.style.strokeDashoffset = String(offset);
-      });
-    }
+    // reset then animate the arc fill on next frame
+    gaugeFill.style.transition = "none";
+    gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
+    requestAnimationFrame(() => {
+      gaugeFill.style.transition = "";
+      const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
+      gaugeFill.style.strokeDashoffset = String(offset);
+    });
 
     showState("result");
   }
 
   function renderError(label, copy) {
-    if (errorLabelEl) errorLabelEl.textContent = label;
-    if (errorCopyEl) errorCopyEl.textContent = copy;
-    if (stateError) showState("error");
+    errorLabelEl.textContent = label;
+    errorCopyEl.textContent = copy;
+    showState("error");
+  }
+
+   // ---------------------------------------------------------
+  // Parse FastAPI / Pydantic 422 error responses into
+  // field-level messages where possible
+  // ---------------------------------------------------------
+  function applyServerValidationErrors(detail) {
+    if (!Array.isArray(detail)) return false;
+    let matched = false;
+    detail.forEach((err) => {
+      const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+      const input = field ? document.getElementById(field) : null;
+      const target = field === "stress_level" ? stressHiddenInput : input;
+      if (target) {
+        setFieldError(target, err.msg || "Invalid value.");
+        matched = true;
+      }
+    });
+    return matched;
   }
 
   // ---------------------------------------------------------
@@ -253,74 +268,60 @@
     showState("loading");
 
     try {
-      let res = await fetch(`${activeApiBase}/predict`, {
+      const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      }).catch(() => null);
+      });
 
-      if (!res && activeApiBase !== LOCAL_API_BASE) {
-        res = await fetch(`${LOCAL_API_BASE}/predict`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }).catch(() => null);
-        if (res) activeApiBase = LOCAL_API_BASE;
-      }
-
-      if (!res) {
+      if (res.status === 422) {
+        const body = await res.json().catch(() => null);
+        const matched = body && applyServerValidationErrors(body.detail);
         renderError(
-          "Connection Failed",
-          "Could not reach prediction server. Please make sure backend server is running."
+          "Check your inputs",
+          matched
+            ? "The API rejected a few fields — details are marked on the form."
+            : "The API rejected this submission. Please review your inputs and try again."
         );
         return;
       }
 
-      if (res.status === 422) {
-        const body = await res.json().catch(() => null);
-        if (body && Array.isArray(body.detail)) {
-          body.detail.forEach((err) => {
-            const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
-            const target = field === "stress_level" ? stressHiddenInput : document.getElementById(field);
-            if (target) setFieldError(target, err.msg || "Invalid value.");
-          });
-        }
-        renderError("Check Inputs", "The server rejected some field values. Details are marked on the form.");
-        return;
-      }
-
       if (!res.ok) {
-        renderError("Prediction Failed", `The API responded with status ${res.status}.`);
+        let detailMsg = `The API responded with status ${res.status}.`;
+        const body = await res.json().catch(() => null);
+        if (body && typeof body.detail === "string") detailMsg = body.detail;
+        renderError("Prediction failed", detailMsg);
         return;
       }
 
       const data = await res.json();
       if (typeof data.predicted_mental_health_score !== "number") {
-        renderError("Unexpected Response", "The API responded, but the score was missing.");
+        renderError("Unexpected response", "The API responded, but the score was missing or malformed.");
         return;
       }
 
       renderResult(data.predicted_mental_health_score);
     } catch (err) {
-      renderError("Error", "An unexpected error occurred during prediction.");
+      renderError(
+        "Can't reach the server",
+        `Couldn't connect to ${API_BASE}. Make sure the backend is running (uvicorn main:app --port 2200 --reload) and reachable from this page.`
+      );
     } finally {
       setSubmitting(false);
     }
   });
 
-  // Live clear error on edit
+  // live-clear errors as the user edits
   form.querySelectorAll("input, select").forEach((el) => {
     el.addEventListener("input", () => clearFieldError(el));
     el.addEventListener("change", () => clearFieldError(el));
   });
 
-  if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
-      form.reset();
-      stressHiddenInput.value = "";
-      segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
-      clearAllErrors();
-      showState("idle");
-    });
-  }
+  resetBtn.addEventListener("click", () => {
+    showState("idle");
+  });
+
+  errorRetryBtn.addEventListener("click", () => {
+    showState("idle");
+  });
 })();

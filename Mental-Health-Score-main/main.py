@@ -49,18 +49,9 @@ class PredictionResponse(BaseModel):
 
 
 
-@app.get('/health')
-def health_check():
-    return {'status': 'ok'}
-
-
 @app.get('/')
-def serve_index():
-    index_path = os.path.join(BASE_DIR, 'index.html')
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {'status': 'Mental Health Score API is running'}
-
+def greet():
+    return {'Welcome to the Mental Health Score Analytics'}
 
 @app.post('/predict', response_model=PredictionResponse) #6.77777
 def predict(data: StudentData):
