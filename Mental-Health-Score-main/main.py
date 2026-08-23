@@ -1,14 +1,19 @@
+import os
 import joblib
 import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import Literal
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
-model = joblib.load('Mental_Health_Model.pkl')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(BASE_DIR, 'Mental_Health_Model.pkl')
+model = joblib.load(model_path)
 top_countries = ['Other','India','USA','Canada','Australia','UK','Germany','Mexico','Turkey','France']
 
-app = FastAPI()
+app = FastAPI(title="Mental Health Score Analytics API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,9 +49,17 @@ class PredictionResponse(BaseModel):
 
 
 
+@app.get('/health')
+def health_check():
+    return {'status': 'ok'}
+
+
 @app.get('/')
-def greet():
-    return {'Welcome'}
+def serve_index():
+    index_path = os.path.join(BASE_DIR, 'index.html')
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {'status': 'Mental Health Score API is running'}
 
 
 @app.post('/predict', response_model=PredictionResponse) #6.77777
@@ -72,3 +85,5 @@ def predict(data: StudentData):
 
    prediction = model.predict(input_row)[0] #6.77
    return PredictionResponse(predicted_mental_health_score=round(float(prediction),2))
+
+app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")

@@ -19,17 +19,39 @@
   const errorLabelEl = document.getElementById("error-label");
   const errorCopyEl = document.getElementById("error-copy");
 
-  const GAUGE_ARC_LENGTH = 314; // approx pi * r(100)
+  const segGroup = document.getElementById("stress_level_group");
+  const stressHiddenInput = document.getElementById("stress_level");
+
+  const GAUGE_ARC_LENGTH = 314; // approx pi * 100
 
   // ---------------------------------------------------------
-  // Draw tick marks on both gauges (0..10, every 2 units)
+  // Check API availability (default to local server)
+  // ---------------------------------------------------------
+  async function detectActiveApi() {
+    if (window.location.protocol.startsWith("http")) {
+      activeApiBase = window.location.origin;
+      return;
+    }
+    try {
+      const localRes = await fetch(`${LOCAL_API_BASE}/health`, { method: "GET" }).catch(() => null);
+      if (localRes && localRes.ok) {
+        activeApiBase = LOCAL_API_BASE;
+      }
+    } catch (e) {
+      activeApiBase = LOCAL_API_BASE;
+    }
+  }
+  detectActiveApi();
+
+  // ---------------------------------------------------------
+  // Draw gauge ticks (0..10)
   // ---------------------------------------------------------
   function drawTicks() {
     document.querySelectorAll(".gauge-ticks").forEach((g) => {
       g.innerHTML = "";
       const cx = 120, cy = 140, rOuter = 100, rInner = 90;
       for (let i = 0; i <= 10; i += 2) {
-        const angle = Math.PI - (i / 10) * Math.PI; // 180deg -> 0deg
+        const angle = Math.PI - (i / 10) * Math.PI;
         const x1 = cx + rOuter * Math.cos(angle);
         const y1 = cy - rOuter * Math.sin(angle);
         const x2 = cx + rInner * Math.cos(angle);
@@ -46,24 +68,24 @@
   drawTicks();
 
   // ---------------------------------------------------------
-  // Segmented control (stress_level) wiring
+  // Segmented control (stress_level)
   // ---------------------------------------------------------
-  const segGroup = document.getElementById("stress_level_group");
-  const stressHiddenInput = document.getElementById("stress_level");
-  segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      stressHiddenInput.value = btn.dataset.value;
-      clearFieldError(stressHiddenInput);
+  if (segGroup) {
+    segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        stressHiddenInput.value = btn.dataset.value;
+        clearFieldError(stressHiddenInput);
+      });
     });
-  });
+  }
 
   // ---------------------------------------------------------
   // Field-level error helpers
   // ---------------------------------------------------------
   function fieldWrapper(input) {
-    return input.closest(".field");
+    return input ? input.closest(".field") : null;
   }
 
   function setFieldError(input, message) {
@@ -88,7 +110,7 @@
   }
 
   // ---------------------------------------------------------
-  // Client-side validation mirroring the StudentData model
+  // Validation (StudentData shape)
   // ---------------------------------------------------------
   function validate(payload) {
     const errors = [];
@@ -126,9 +148,6 @@
     return errors;
   }
 
-  // ---------------------------------------------------------
-  // Gather form data into the exact StudentData shape
-  // ---------------------------------------------------------
   function collectPayload() {
     const fd = new FormData(form);
     return {
@@ -148,11 +167,12 @@
   }
 
   // ---------------------------------------------------------
-  // UI state switching
+  // UI state management
   // ---------------------------------------------------------
   function showState(name) {
-    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => (el.hidden = true));
-    ({ idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name]).hidden = false;
+    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => { if (el) el.hidden = true; });
+    const target = { idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name];
+    if (target) target.hidden = false;
   }
 
   function setSubmitting(isSubmitting) {
@@ -163,18 +183,18 @@
   function bandFor(score) {
     if (score < 4) {
       return {
-        label: "Signal: strained",
+        label: "Signal: Strained",
         context: "Your responses suggest elevated strain right now. Small shifts in sleep or screen time can go a long way.",
       };
     }
     if (score < 7) {
       return {
-        label: "Signal: balanced",
+        label: "Signal: Balanced",
         context: "Your rhythm looks fairly steady, with some room to recover and reset.",
       };
     }
     return {
-      label: "Signal: strong",
+      label: "Signal: Strong",
       context: "Your habits point to a well-supported, resilient baseline. Keep it up.",
     };
   }
@@ -187,41 +207,21 @@
     scoreBandEl.textContent = label;
     scoreContextEl.textContent = context;
 
-    // reset then animate the arc fill on next frame
-    gaugeFill.style.transition = "none";
-    gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
-    requestAnimationFrame(() => {
-      gaugeFill.style.transition = "";
-      const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
-      gaugeFill.style.strokeDashoffset = String(offset);
-    });
+    if (gaugeFill) {
+      gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
+      requestAnimationFrame(() => {
+        const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
+        gaugeFill.style.strokeDashoffset = String(offset);
+      });
+    }
 
     showState("result");
   }
 
   function renderError(label, copy) {
-    errorLabelEl.textContent = label;
-    errorCopyEl.textContent = copy;
-    showState("error");
-  }
-
-  // ---------------------------------------------------------
-  // Parse FastAPI / Pydantic 422 error responses into
-  // field-level messages where possible
-  // ---------------------------------------------------------
-  function applyServerValidationErrors(detail) {
-    if (!Array.isArray(detail)) return false;
-    let matched = false;
-    detail.forEach((err) => {
-      const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
-      const input = field ? document.getElementById(field) : null;
-      const target = field === "stress_level" ? stressHiddenInput : input;
-      if (target) {
-        setFieldError(target, err.msg || "Invalid value.");
-        matched = true;
-      }
-    });
-    return matched;
+    if (errorLabelEl) errorLabelEl.textContent = label;
+    if (errorCopyEl) errorCopyEl.textContent = copy;
+    if (stateError) showState("error");
   }
 
   // ---------------------------------------------------------
@@ -244,56 +244,74 @@
     showState("loading");
 
     try {
-      const res = await fetch(`${API_BASE}/predict`, {
+      let res = await fetch(`${activeApiBase}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
+      }).catch(() => null);
 
-      if (res.status === 422) {
-        const body = await res.json().catch(() => null);
-        const matched = body && applyServerValidationErrors(body.detail);
+      if (!res && activeApiBase !== LOCAL_API_BASE) {
+        res = await fetch(`${LOCAL_API_BASE}/predict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch(() => null);
+        if (res) activeApiBase = LOCAL_API_BASE;
+      }
+
+      if (!res) {
         renderError(
-          "Check your inputs",
-          matched
-            ? "The API rejected a few fields — details are marked on the form."
-            : "The API rejected this submission. Please review your inputs and try again."
+          "Connection Failed",
+          "Could not reach prediction server. Please make sure backend server is running."
         );
         return;
       }
 
-      if (!res.ok) {
-        let detailMsg = `The API responded with status ${res.status}.`;
+      if (res.status === 422) {
         const body = await res.json().catch(() => null);
-        if (body && typeof body.detail === "string") detailMsg = body.detail;
-        renderError("Prediction failed", detailMsg);
+        if (body && Array.isArray(body.detail)) {
+          body.detail.forEach((err) => {
+            const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+            const target = field === "stress_level" ? stressHiddenInput : document.getElementById(field);
+            if (target) setFieldError(target, err.msg || "Invalid value.");
+          });
+        }
+        renderError("Check Inputs", "The server rejected some field values. Details are marked on the form.");
+        return;
+      }
+
+      if (!res.ok) {
+        renderError("Prediction Failed", `The API responded with status ${res.status}.`);
         return;
       }
 
       const data = await res.json();
       if (typeof data.predicted_mental_health_score !== "number") {
-        renderError("Unexpected response", "The API responded, but the score was missing or malformed.");
+        renderError("Unexpected Response", "The API responded, but the score was missing.");
         return;
       }
 
       renderResult(data.predicted_mental_health_score);
     } catch (err) {
-      renderError(
-        "Can't reach the server",
-        `Couldn't connect to ${API_BASE}. Make sure the backend is running (uvicorn main:app --port 2200 --reload) and reachable from this page.`
-      );
+      renderError("Error", "An unexpected error occurred during prediction.");
     } finally {
       setSubmitting(false);
     }
   });
 
-  // live-clear errors as the user edits
+  // Live clear error on edit
   form.querySelectorAll("input, select").forEach((el) => {
     el.addEventListener("input", () => clearFieldError(el));
     el.addEventListener("change", () => clearFieldError(el));
   });
 
-  resetBtn.addEventListener("click", () => {
-    showState("idle");
-  });
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      form.reset();
+      stressHiddenInput.value = "";
+      segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      clearAllErrors();
+      showState("idle");
+    });
+  }
 })();
