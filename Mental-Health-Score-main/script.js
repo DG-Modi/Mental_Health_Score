@@ -1,8 +1,11 @@
 (() => {
   "use strict";
 
+  const DEPLOYED_API_BASE = "https://mental-health-score-1-jp13.onrender.com";
   const LOCAL_API_BASE = "http://127.0.0.1:8000";
-  let activeApiBase = (window.location.protocol.startsWith("http")) ? window.location.origin : LOCAL_API_BASE;
+  let activeApiBase = window.location.protocol.startsWith("http")
+    ? window.location.origin
+    : DEPLOYED_API_BASE;
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
@@ -26,21 +29,26 @@
   const GAUGE_ARC_LENGTH = 314; // approx pi * 100
 
   // ---------------------------------------------------------
-  // Check API availability (default to local server)
+  // Select a reachable API endpoint for hosted and local runs.
   // ---------------------------------------------------------
   async function detectActiveApi() {
-    if (window.location.protocol.startsWith("http")) {
-      activeApiBase = window.location.origin;
-      return;
-    }
-    try {
-      const localRes = await fetch(`${LOCAL_API_BASE}/health`, { method: "GET" }).catch(() => null);
-      if (localRes && localRes.ok) {
-        activeApiBase = LOCAL_API_BASE;
+    const candidateBases = [activeApiBase, DEPLOYED_API_BASE, LOCAL_API_BASE].filter(
+      (base, i, arr) => base && arr.indexOf(base) === i
+    );
+
+    for (const base of candidateBases) {
+      try {
+        const res = await fetch(`${base}/health`, { method: "GET" }).catch(() => null);
+        if (res && res.ok) {
+          activeApiBase = base;
+          return;
+        }
+      } catch (_) {
+        // Try the next candidate.
       }
-    } catch (e) {
-      activeApiBase = LOCAL_API_BASE;
     }
+
+    activeApiBase = candidateBases[0] || DEPLOYED_API_BASE;
   }
   detectActiveApi();
 

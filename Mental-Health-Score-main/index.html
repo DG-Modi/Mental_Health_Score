@@ -210,6 +210,13 @@
           <p class="loading-copy">Running your habits through the predictive model.</p>
         </div>
 
+        <!-- ERROR STATE -->
+        <div class="state state-error" id="state-error" hidden>
+          <div class="error-icon" aria-hidden="true">!</div>
+          <p class="error-label" id="error-label">Prediction Failed</p>
+          <p class="error-copy" id="error-copy">We could not complete your request. Please try again.</p>
+        </div>
+
         <!-- RESULT STATE -->
         <div class="state state-result" id="state-result" hidden>
           <svg class="gauge gauge-result" viewBox="0 0 240 160" aria-hidden="true">
