@@ -19,10 +19,10 @@
 
   <header class="site-header">
     <div class="header-inner">
-      <span class="eyebrow">Student Wellness Analytics</span>
-      <h1 class="title">Mental Health <em>Signal</em></h1>
-      <p class="subtitle">A quick read on how habits, screen time, and stress are trending — modeled from your daily
-        rhythm, not a diagnosis.</p>
+      <span class="eyebrow">STUDENT WELLNESS DASHBOARD</span>
+      <h1 class="title">MindPulse</h1>
+      <p class="subtitle">Understand how your daily habits, screen time, sleep, and stress contribute to your overall
+        wellness. This score provides wellness insights and is not a clinical diagnosis.</p>
     </div>
   </header>
 
@@ -180,7 +180,7 @@
               <span class="error-msg" data-for="sleep_hours_per_night"></span>
             </div>
             <div class="field field-span">
-              <label for="stress_level">Perceived stress level</label>
+              <label for="stress_level">How stressed do you feel today?</label>
               <div class="segmented" id="stress_level_group" data-name="stress_level">
                 <button type="button" class="seg-btn" data-value="Low">Low</button>
                 <button type="button" class="seg-btn" data-value="Medium">Medium</button>
@@ -195,7 +195,7 @@
 
         <div class="form-footer">
           <button type="submit" class="submit-btn" id="submit-btn">
-            <span class="btn-label">Read my signal</span>
+            <span class="btn-label">Check My Wellness</span>
             <span class="btn-spinner" aria-hidden="true"></span>
           </button>
         </div>
@@ -211,14 +211,15 @@
             <path class="gauge-track" d="M 30 140 A 100 100 0 0 1 210 140" />
             <g class="gauge-ticks"></g>
           </svg>
-          <p class="idle-label">Your score will appear here</p>
-          <p class="idle-copy">Fill in the form and submit to generate a predicted mental health score from 0–10.</p>
+          <p class="idle-label">Your wellness score will appear here.</p>
+          <p class="idle-copy">Complete the form below to generate your personalized wellness score on a scale of 0–10.
+          </p>
         </div>
 
         <div class="state state-loading" id="state-loading" hidden>
           <div class="pulse-ring"></div>
-          <p class="loading-label">Reading the signal…</p>
-          <p class="loading-copy">Running your habits through the model.</p>
+          <p class="loading-label">Analyzing your wellness patterns…</p>
+          <p class="loading-copy">Processing your responses to generate personalized wellness insights.</p>
         </div>
 
         <div class="state state-result" id="state-result" hidden>
@@ -241,7 +242,7 @@
           </div>
           <p class="score-band" id="score-band">—</p>
           <p class="score-context" id="score-context"></p>
-          <button type="button" class="reset-btn" id="reset-btn">Run another read</button>
+          <button type="button" class="reset-btn" id="reset-btn">Take Another Assessment</button>
         </div>
 
 
@@ -251,8 +252,8 @@
   </main>
 
   <footer class="site-footer">
-    <p>Built for informational purposes only — this is not a clinical assessment. If you're struggling, please talk to
-      someone you trust.</p>
+    <p>This wellness score is intended for educational and informational purposes only. It is not a medical or clinical
+      diagnosis and should not replace professional mental health advice.</p>
   </footer>
 
   <script src="script.js"></script>
