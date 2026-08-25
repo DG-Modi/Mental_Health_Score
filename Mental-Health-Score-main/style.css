@@ -130,7 +130,7 @@ body {
 }
 
 .form-panel {
-  padding: 8px 32px 32px;
+  padding: 32px;
 }
 
 .result-panel {
@@ -150,8 +150,12 @@ body {
 fieldset.group {
   border: none;
   margin: 0;
-  padding: 28px 0;
+  padding: 0 0 24px 0;
   border-bottom: 1px solid var(--line);
+}
+
+fieldset.group+fieldset.group {
+  margin-top: 10px;
 }
 
 fieldset.group:last-of-type {
@@ -642,7 +646,7 @@ input:invalid:not(:placeholder-shown):not(:focus) {
   }
 
   .form-panel {
-    padding: 4px 20px 24px;
+    padding: 24px 20px;
   }
 
   .grid-2,
