@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
- const API_BASE = "https://mental-health-score-58g5.onrender.com";
+  const API_BASE = "https://mental-health-score-1-jp13.onrender.com";
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
@@ -10,53 +10,23 @@
   const stateIdle = document.getElementById("state-idle");
   const stateLoading = document.getElementById("state-loading");
   const stateResult = document.getElementById("state-result");
-  const stateError = document.getElementById("state-error");
 
   const scoreNumberEl = document.getElementById("score-number");
   const scoreBandEl = document.getElementById("score-band");
   const scoreContextEl = document.getElementById("score-context");
   const gaugeFill = document.getElementById("gauge-fill");
-  const errorLabelEl = document.getElementById("error-label");
-  const errorCopyEl = document.getElementById("error-copy");
 
-  const segGroup = document.getElementById("stress_level_group");
-  const stressHiddenInput = document.getElementById("stress_level");
-
-  const GAUGE_ARC_LENGTH = 314; // approx pi * 100
+  const GAUGE_ARC_LENGTH = 314; // approx pi * r(100)
 
   // ---------------------------------------------------------
-  // Select a reachable API endpoint for hosted and local runs.
-  // ---------------------------------------------------------
-  async function detectActiveApi() {
-    const candidateBases = [activeApiBase, DEPLOYED_API_BASE, LOCAL_API_BASE].filter(
-      (base, i, arr) => base && arr.indexOf(base) === i
-    );
-
-    for (const base of candidateBases) {
-      try {
-        const res = await fetch(`${base}/health`, { method: "GET" }).catch(() => null);
-        if (res && res.ok) {
-          activeApiBase = base;
-          return;
-        }
-      } catch (_) {
-        // Try the next candidate.
-      }
-    }
-
-    activeApiBase = candidateBases[0] || DEPLOYED_API_BASE;
-  }
-  detectActiveApi();
-
-  // ---------------------------------------------------------
-  // Draw gauge ticks (0..10)
+  // Draw tick marks on both gauges (0..10, every 2 units)
   // ---------------------------------------------------------
   function drawTicks() {
     document.querySelectorAll(".gauge-ticks").forEach((g) => {
       g.innerHTML = "";
       const cx = 120, cy = 140, rOuter = 100, rInner = 90;
       for (let i = 0; i <= 10; i += 2) {
-        const angle = Math.PI - (i / 10) * Math.PI;
+        const angle = Math.PI - (i / 10) * Math.PI; // 180deg -> 0deg
         const x1 = cx + rOuter * Math.cos(angle);
         const y1 = cy - rOuter * Math.sin(angle);
         const x2 = cx + rInner * Math.cos(angle);
@@ -73,24 +43,24 @@
   drawTicks();
 
   // ---------------------------------------------------------
-  // Segmented control (stress_level)
+  // Segmented control (stress_level) wiring
   // ---------------------------------------------------------
-  if (segGroup) {
-    segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        stressHiddenInput.value = btn.dataset.value;
-        clearFieldError(stressHiddenInput);
-      });
+  const segGroup = document.getElementById("stress_level_group");
+  const stressHiddenInput = document.getElementById("stress_level");
+  segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      stressHiddenInput.value = btn.dataset.value;
+      clearFieldError(stressHiddenInput);
     });
-  }
+  });
 
   // ---------------------------------------------------------
   // Field-level error helpers
   // ---------------------------------------------------------
   function fieldWrapper(input) {
-    return input ? input.closest(".field") : null;
+    return input.closest(".field");
   }
 
   function setFieldError(input, message) {
@@ -115,7 +85,7 @@
   }
 
   // ---------------------------------------------------------
-  // Validation (StudentData shape)
+  // Client-side validation mirroring the StudentData model
   // ---------------------------------------------------------
   function validate(payload) {
     const errors = [];
@@ -153,6 +123,9 @@
     return errors;
   }
 
+  // ---------------------------------------------------------
+  // Gather form data into the exact StudentData shape
+  // ---------------------------------------------------------
   function collectPayload() {
     const fd = new FormData(form);
     return {
@@ -172,11 +145,14 @@
   }
 
   // ---------------------------------------------------------
-  // UI state management
+  // UI state switching
   // ---------------------------------------------------------
   function showState(name) {
-    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => (el.hidden = true));
-    ({ idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name]).hidden = false;
+    [stateIdle, stateLoading, stateResult].forEach((el) => {
+      if (el) el.hidden = true;
+    });
+    const target = { idle: stateIdle, loading: stateLoading, result: stateResult }[name];
+    if (target) target.hidden = false;
   }
 
   function setSubmitting(isSubmitting) {
@@ -224,12 +200,10 @@
   }
 
   function renderError(label, copy) {
-    errorLabelEl.textContent = label;
-    errorCopyEl.textContent = copy;
-    showState("error");
+    showState("idle");
   }
 
-   // ---------------------------------------------------------
+  // ---------------------------------------------------------
   // Parse FastAPI / Pydantic 422 error responses into
   // field-level messages where possible
   // ---------------------------------------------------------
@@ -317,11 +291,36 @@
     el.addEventListener("change", () => clearFieldError(el));
   });
 
-  resetBtn.addEventListener("click", () => {
-    showState("idle");
-  });
+  // ---------------------------------------------------------
+  // Reset / Refresh application state & form
+  // ---------------------------------------------------------
+  function resetApplication() {
+    // 1. Reset all form inputs
+    form.reset();
 
-  errorRetryBtn.addEventListener("click", () => {
+    // 2. Reset segmented control (stress level)
+    segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+    stressHiddenInput.value = "";
+
+    // 3. Clear all field validation errors
+    clearAllErrors();
+
+    // 4. Reset result / signal gauge
+    scoreNumberEl.textContent = "--";
+    scoreBandEl.textContent = "Signal: awaiting data";
+    scoreContextEl.textContent = "Complete the form and submit to receive your modeled wellness baseline.";
+    gaugeFill.style.transition = "none";
+    gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
+
+    // 5. Return to idle screen
     showState("idle");
-  });
+
+    // 6. Focus first field
+    const ageInput = document.getElementById("age");
+    if (ageInput) ageInput.focus();
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", resetApplication);
+  }
 })();

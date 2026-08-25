@@ -1,19 +1,20 @@
-import os
 import joblib
 import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import Literal
 from fastapi.middleware.cors import CORSMiddleware
+
+import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'Mental_Health_Model.pkl')
 model = joblib.load(model_path)
-top_countries = ['Other','India','USA','Canada','Australia','UK','Germany','Mexico','Turkey','France']
+top_countries = ['Other','India','USA','Canada','Australia','UK','Germany','Mexico','Turkey','France','Brazil','China','Japan','Korea','Russia','Spain','Italy','Argentina','Portugal','Norway']
 
-app = FastAPI(title="Mental Health Score Analytics API")
+app = FastAPI(title="Mental Health Signal API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,8 +30,8 @@ class StudentData(BaseModel):
     gender                  : Literal['Male', 'Female']
     country                 : str
     academic_level          : Literal['Undergraduate', 'Graduate', 'High School']
-    most_used_platform      : Literal['Facebook', 'LinkedIn', 'Instagram', 'Snapchat','Twitter','YouTube', 'TikTok', 'LINE', 'KakaoTalk', 'VKontakte', 'WhatsApp','WeChat']
-    purpose_of_use          : Literal['Networking', 'Education', 'Entertainment', 'News']
+    most_used_platform      : Literal['Facebook', 'LinkedIn', 'Instagram', 'Snapchat','Twitter','YouTube', 'TikTok', 'Telegram', 'Netflix', 'Discord', 'WhatsApp','Pinterest', 'Other']
+    purpose_of_use          : Literal['Networking', 'Education', 'Entertainment', 'News','Health and Wellness','Gaming','Shopping','design and creative','other']
     avg_daily_usage_hours   : float = Field(..., ge=0, le=24)
     daily_unlocks           : int   = Field(..., ge=0)
     study_hours             : float = Field(..., ge=0, le=24)
@@ -50,8 +51,13 @@ class PredictionResponse(BaseModel):
 
 
 @app.get('/')
-def greet():
-    return {'Welcome to the Mental Health Score Analytics'}
+def serve_index():
+    index_file = os.path.join(BASE_DIR, 'index.html')
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {'Welcome to Mental Health Signal API'}
+
+
 
 @app.post('/predict', response_model=PredictionResponse) #6.77777
 def predict(data: StudentData):
@@ -76,5 +82,6 @@ def predict(data: StudentData):
 
    prediction = model.predict(input_row)[0] #6.77
    return PredictionResponse(predicted_mental_health_score=round(float(prediction),2))
+
 
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
