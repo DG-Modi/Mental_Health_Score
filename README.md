@@ -324,5 +324,3 @@ Computer Engineering Student | Data Analytics & Machine Learning Enthusiast
 - LinkedIn: www.linkedin.com/in/dev-modi-67a639341/
 
 ---
-
-### ⭐ If you found this project helpful, consider giving it a Star!
